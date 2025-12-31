@@ -4,6 +4,7 @@
 
 import streamlit as st
 import base64
+from streamlit_pdf_viewer import pdf_viewer
 
 from app.config import (
     LISTA_FUENTES, 
@@ -92,9 +93,8 @@ def render_preview(pdf_bytes):
         else:
             raise ValueError("El objeto pdf_bytes no es ni bytes ni str, no se puede convertir.")
     
-    b64 = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_display = f'<embed src="data:application/pdf;base64,{b64}" width="100%" height="800" type="application/pdf">'
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    # Usar streamlit-pdf-viewer para una mejor experiencia
+    pdf_viewer(pdf_bytes, width=700, height=800)
 
 
 def render_download_button(word_buffer):

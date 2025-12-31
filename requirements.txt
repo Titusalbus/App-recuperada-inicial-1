@@ -6,3 +6,4 @@ Pillow
 fpdf2
 pdfplumber
 pypdf
+streamlit-pdf-viewer
