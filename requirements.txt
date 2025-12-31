@@ -3,6 +3,6 @@ pymupdf
 python-docx
 streamlit-option-menu
 Pillow
-fpdf
+fpdf2
 pdfplumber
 pypdf
