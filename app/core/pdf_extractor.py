@@ -117,6 +117,8 @@ def procesar_highlight(datos, alto, all_chars):
 
 def procesar_pdf(archivo_pdf, config):
     """Procesa el PDF y genera el documento Word con los resaltados"""
+
+    # --- PRIVACIDAD: No se guarda ningún archivo en disco, todo se procesa en memoria ---
     reader = PdfReader(archivo_pdf)
     total_paginas = len(reader.pages)
     
