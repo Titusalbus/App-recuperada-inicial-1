@@ -21,13 +21,20 @@ def escanear_colores_pdf(archivo_pdf):
     for page in reader.pages:
         if "/Annots" in page:
             for annot in page["/Annots"]:
-                obj = annot.get_object()
-                if obj.get("/Subtype") == "/Highlight":
-                    color = obj.get("/C") or obj.get("/Color")
-                    if color:
-                        # Redondeo a 1 decimal para agrupar colores similares
-                        color_normalizado = tuple(round(c, 1) for c in color)
-                        colores_encontrados.add(color_normalizado)
+                try:
+                    obj = annot.get_object()
+                    # Verificar que obj sea un diccionario antes de usar .get()
+                    if not hasattr(obj, 'get'):
+                        continue
+                    if obj.get("/Subtype") == "/Highlight":
+                        color = obj.get("/C") or obj.get("/Color")
+                        if color:
+                            # Redondeo a 1 decimal para agrupar colores similares
+                            color_normalizado = tuple(round(c, 1) for c in color)
+                            colores_encontrados.add(color_normalizado)
+                except Exception:
+                    # Ignorar anotaciones que no se pueden procesar
+                    continue
     return list(colores_encontrados)
 
 def obtener_mapa_capitulos(reader):

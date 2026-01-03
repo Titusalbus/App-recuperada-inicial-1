@@ -6,6 +6,7 @@ import streamlit as st
 
 # Configuración
 from app.config import PAGE_CONFIG
+from app.environment import show_environment_badge, is_prod
 
 # Core - Lógica de negocio
 from app.core import escanear_colores_pdf, procesar_pdf, generar_preview_visual
@@ -30,6 +31,12 @@ from app.database.auth import esta_autenticado, inicializar_estado_auth
 # ==========================================
 
 st.set_page_config(**PAGE_CONFIG)
+
+# ==========================================
+# INDICADOR DE ENTORNO (solo en dev/staging)
+# ==========================================
+
+show_environment_badge()
 
 # ==========================================
 # ESTADO DE SESIÓN

@@ -64,39 +64,91 @@ def extraer_caracteres_rect(datos, alto, all_chars):
 
 
 def reconstruir_texto(valid_chars):
-    """Reconstruye el texto desde los caracteres detectando espacios"""
-    # Deduplicar caracteres por posición
-    valid_chars = list({(c['x0'], c['top']): c for c in valid_chars}.values())
-    
-    # Ordenar por posición (top primero, luego x0)
-    valid_chars.sort(key=lambda c: (round(c['top'], 1), c['x0']))
+    """Reconstruye el texto desde los caracteres detectando espacios.
+    Algoritmo mejorado para PDFs con OCR antiguo o mal formado."""
     
     if not valid_chars:
         return ""
     
-    partes = []
-    ultima_linea = None
-    ultimo_x1 = None
+    # Deduplicar caracteres por posición (mismo x0 y top)
+    seen = {}
+    for c in valid_chars:
+        key = (round(c['x0'], 1), round(c['top'], 1))
+        # Si ya existe, preferir el que tenga texto no vacío
+        if key not in seen or (not seen[key]['text'].strip() and c['text'].strip()):
+            seen[key] = c
+    valid_chars = list(seen.values())
     
-    for char in valid_chars:
-        linea_actual = round(char['top'], 1)
-        
-        # Si cambiamos de línea, agregar espacio
-        if ultima_linea is not None and linea_actual != ultima_linea:
-            partes.append(' ')
-        # Si hay gap horizontal significativo, agregar espacio
-        elif ultimo_x1 is not None:
-            gap = char['x0'] - ultimo_x1
-            char_width = char['x1'] - char['x0']
-            if gap > char_width * 0.3:
-                partes.append(' ')
-        
-        partes.append(char['text'])
-        ultima_linea = linea_actual
-        ultimo_x1 = char['x1']
+    if not valid_chars:
+        return ""
     
-    texto = ''.join(partes)
+    # --- PASO 1: Agrupar caracteres en líneas usando clustering por posición Y ---
+    # Calcular altura promedio de caracteres para tolerancia
+    alturas = [c['bottom'] - c['top'] for c in valid_chars if c['bottom'] - c['top'] > 0]
+    altura_promedio = sum(alturas) / len(alturas) if alturas else 10
+    tolerancia_linea = altura_promedio * 0.5  # 50% de altura como tolerancia
+    
+    # Ordenar por Y primero para agrupar en líneas
+    chars_por_y = sorted(valid_chars, key=lambda c: c['top'])
+    
+    lineas = []
+    linea_actual = [chars_por_y[0]]
+    y_base = chars_por_y[0]['top']
+    
+    for char in chars_por_y[1:]:
+        # Si el caracter está dentro de la tolerancia vertical, es la misma línea
+        if abs(char['top'] - y_base) <= tolerancia_linea:
+            linea_actual.append(char)
+        else:
+            # Nueva línea
+            lineas.append(linea_actual)
+            linea_actual = [char]
+            y_base = char['top']
+    
+    # No olvidar la última línea
+    if linea_actual:
+        lineas.append(linea_actual)
+    
+    # --- PASO 2: Ordenar líneas por posición Y promedio y caracteres por X ---
+    def y_promedio_linea(linea):
+        return sum(c['top'] for c in linea) / len(linea)
+    
+    lineas.sort(key=y_promedio_linea)
+    
+    # --- PASO 3: Reconstruir texto línea por línea ---
+    partes_finales = []
+    
+    for linea in lineas:
+        # Ordenar caracteres de la línea por posición X (izquierda a derecha)
+        linea_ordenada = sorted(linea, key=lambda c: c['x0'])
+        
+        partes_linea = []
+        ultimo_x1 = None
+        
+        for char in linea_ordenada:
+            # Detectar espacios por gap horizontal
+            if ultimo_x1 is not None:
+                gap = char['x0'] - ultimo_x1
+                char_width = max(char['x1'] - char['x0'], 1)
+                # Gap mayor al 30% del ancho del caracter = espacio
+                if gap > char_width * 0.3:
+                    partes_linea.append(' ')
+            
+            partes_linea.append(char['text'])
+            ultimo_x1 = char['x1']
+        
+        texto_linea = ''.join(partes_linea).strip()
+        if texto_linea:
+            partes_finales.append(texto_linea)
+    
+    # Unir líneas con espacio (los highlights suelen ser continuos)
+    texto = ' '.join(partes_finales)
     texto = unicodedata.normalize('NFC', texto)
+    
+    # Limpiar espacios múltiples
+    import re
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    
     return texto
 
 
@@ -155,7 +207,8 @@ def procesar_pdf(archivo_pdf, config):
             all_chars = plumber_page.chars
             
             anotaciones = [x.get_object() for x in pypdf_page["/Annots"]]
-            highlights = [x for x in anotaciones if x.get("/Subtype") == "/Highlight" and "/Rect" in x]
+            # Filtrar solo objetos que tienen el método .get() (son diccionarios)
+            highlights = [x for x in anotaciones if hasattr(x, 'get') and x.get("/Subtype") == "/Highlight" and "/Rect" in x]
             highlights.sort(key=lambda x: x["/Rect"][3], reverse=True)
             
             # Separador de página
